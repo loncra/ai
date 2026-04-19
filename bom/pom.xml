@@ -77,6 +77,18 @@
                 <scope>import</scope>
             </dependency>
 
+            <dependency>
+                <groupId>io.github.loncra.ai</groupId>
+                <artifactId>spring-ai-starter-model-google-genai-image</artifactId>
+                <version>${loncra.ai.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.loncra.ai</groupId>
+                <artifactId>spring-ai-starter-model-google-genai-image</artifactId>
+                <version>${loncra.ai.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
