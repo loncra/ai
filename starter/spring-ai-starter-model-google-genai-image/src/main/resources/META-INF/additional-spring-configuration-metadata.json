@@ -1,0 +1,15 @@
+{
+  "groups": [
+    {
+      "name": "io.github.loncra"
+    }
+  ],
+  "properties": [
+    {
+      "name": "spring.ai.google.genai.image.enabled",
+      "type": "java.lang.Boolean",
+      "description": "enabled google image support .",
+      "defaultValue": true
+    }
+  ]
+}
