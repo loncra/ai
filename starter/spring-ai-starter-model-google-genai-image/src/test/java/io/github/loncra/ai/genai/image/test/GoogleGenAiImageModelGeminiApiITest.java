@@ -4,7 +4,6 @@ import io.github.loncra.ai.genai.image.GoogleGenAiImageModel;
 import io.github.loncra.ai.genai.image.GoogleGenAiImageOptions;
 import io.github.loncra.ai.genai.image.enumerate.GeminiImageModel;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.ai.image.ImageGeneration;
@@ -26,8 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author maurice.chen
  */
 @Tag("integration")
-@ExtendWith(ApiKeyExecutionCondition.class)
-@SpringBootTest(classes = GoogleGenaiImageApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(classes = GoogleGenaiImageStarterApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class GoogleGenAiImageModelGeminiApiITest {
 
 	@Autowired

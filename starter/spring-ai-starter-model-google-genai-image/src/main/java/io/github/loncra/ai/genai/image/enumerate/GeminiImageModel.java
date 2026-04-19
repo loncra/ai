@@ -1,7 +1,5 @@
 package io.github.loncra.ai.genai.image.enumerate;
 
-
-import io.github.loncra.ai.genai.image.GoogleGenAiImageOptions;
 import io.github.loncra.framework.commons.enumerate.NameValueEnum;
 
 import java.util.Locale;
@@ -9,13 +7,6 @@ import java.util.Optional;
 
 /**
  * Google Gemini <strong>原生图像生成</strong>（文档中的 Nano Banana 系列）常用模型 ID。
- *
- * <p>名称与 ID 以
- * <a href="https://ai.google.dev/gemini-api/docs/models">Gemini API 模型列表</a>
- * 为准；预览类模型可能变更或下线，生产环境请固定具体 {@link #getValue()} 并关注官方弃用公告。
- *
- * <p>另有不属于本枚举命名空间的模型（例如 Imagen 系列走不同能力），请直接使用 {@link GoogleGenAiImageOptions#getModel()}  传入官方字符串。
- *
  * @author maurice.chen
  */
 public enum GeminiImageModel implements NameValueEnum<String> {

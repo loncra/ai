@@ -9,10 +9,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author maurice.chen
  */
 @SpringBootApplication
-public class GoogleGenaiImageApplication {
+public class GoogleGenaiImageStarterApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(GoogleGenaiImageApplication.class, args);
+		SpringApplication.run(GoogleGenaiImageStarterApplication.class, args);
 	}
 
 }

@@ -15,6 +15,7 @@
 
     <modules>
         <module>spring-ai-starter-model-google-genai-image</module>
+        <module>spring-ai-starter-model-turbo-seedance-video</module>
     </modules>
 
 </project>

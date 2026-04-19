@@ -1,0 +1,15 @@
+{
+  "groups": [
+    {
+      "name": "io.github.loncra"
+    }
+  ],
+  "properties": [
+    {
+      "name": "loncra.ai.turbo.seedance.video.enabled",
+      "type": "java.lang.Boolean",
+      "description": "enabled turbo seedance video support .",
+      "defaultValue": true
+    }
+  ]
+}
