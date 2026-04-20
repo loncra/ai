@@ -116,11 +116,6 @@ public class TurboSeedanceVideoProperties {
 	private Boolean watermark;
 
 	/**
-	 * 默认 webhook 地址。
-	 */
-	private String webhookUrl;
-
-	/**
 	 * 默认 callback 地址（兼容别名）。
 	 */
 	private String callbackUrl;
@@ -258,14 +253,6 @@ public class TurboSeedanceVideoProperties {
 		this.watermark = watermark;
 	}
 
-	public String getWebhookUrl() {
-		return this.webhookUrl;
-	}
-
-	public void setWebhookUrl(String webhookUrl) {
-		this.webhookUrl = webhookUrl;
-	}
-
 	public String getCallbackUrl() {
 		return this.callbackUrl;
 	}
@@ -305,10 +292,6 @@ public class TurboSeedanceVideoProperties {
 		}
 		if (this.watermark != null) {
 			builder.watermark(this.watermark);
-			hasMetadata = true;
-		}
-		if (this.webhookUrl != null && !this.webhookUrl.isBlank()) {
-			builder.webhookUrl(this.webhookUrl);
 			hasMetadata = true;
 		}
 		if (this.callbackUrl != null && !this.callbackUrl.isBlank()) {
