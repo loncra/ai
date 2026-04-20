@@ -45,7 +45,7 @@ import java.util.Map;
 @ConditionalOnClass({Client.class, GoogleGenAiImageModel.class})
 @ConditionalOnProperty(name = SpringAIModelProperties.IMAGE_MODEL, havingValue = SpringAIModels.GOOGLE_GEN_AI,
         matchIfMissing = true)
-@EnableConfigurationProperties({GoogleGenAiImageProperties.class, GoogleGenAiConnectionExtProperties.class})
+@EnableConfigurationProperties({GoogleGenAiImageProperties.class, GoogleGenAiConnectionExtProperties.class, GoogleGenAiConnectionProperties.class})
 public class GoogleGenAiImageAutoConfiguration {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GoogleGenAiImageAutoConfiguration.class);
