@@ -1,4 +1,4 @@
-package io.github.loncra.ai.turbo.seedance.video.domian.metadata;
+package io.github.loncra.ai.turbo.seedance.video.domian;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

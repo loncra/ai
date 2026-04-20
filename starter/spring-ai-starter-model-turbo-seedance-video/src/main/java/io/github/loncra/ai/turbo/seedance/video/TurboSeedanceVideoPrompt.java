@@ -35,19 +35,19 @@ public class TurboSeedanceVideoPrompt implements ModelRequest<String> {
 	/**
 	 * 便捷构造：文本 + 单张图片，适合 {@link TurboSeedanceVideoMode#IMAGE_TO_VIDEO}。
 	 */
-	public static TurboSeedanceVideoPrompt ofImage(String instructions, String imageUrl) {
+	/*public static TurboSeedanceVideoPrompt ofImage(String instructions, String imageUrl) {
 		TurboSeedanceVideoOptions opts = TurboSeedanceVideoOptions.builder().image(imageUrl).build();
 		return new TurboSeedanceVideoPrompt(instructions, opts);
-	}
+	}*/
 
 	/**
 	 * 便捷构造：文本 + 多张图片，适合 {@link TurboSeedanceVideoMode#FIRST_LAST_FRAME} 或 {@link TurboSeedanceVideoMode#MULTI_REF}。
 	 */
-	public static TurboSeedanceVideoPrompt ofImages(String instructions, String... imageUrls) {
+	/*public static TurboSeedanceVideoPrompt ofImages(String instructions, String... imageUrls) {
 		List<String> list = imageUrls != null ? new ArrayList<>(Arrays.asList(imageUrls)) : Collections.emptyList();
 		TurboSeedanceVideoOptions opts = TurboSeedanceVideoOptions.builder().images(list).build();
 		return new TurboSeedanceVideoPrompt(instructions, opts);
-	}
+	}*/
 
 	@Override
 	public String getInstructions() {

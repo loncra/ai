@@ -3,6 +3,7 @@ package io.github.loncra.ai.turbo.seedance.video;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoErrorResponse;
+import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoQueryResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoSubmitResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.exception.TurboSeedanceVideoException;
 import org.slf4j.Logger;
@@ -115,7 +116,7 @@ public class TurboSeedanceVideoApiClient {
 	 * @param taskId 任务 ID
 	 * @return 接口响应
 	 */
-	public TurboSeedanceVideoSubmitResponse query(String taskId) {
+	public TurboSeedanceVideoQueryResponse query(String taskId) {
 		Assert.hasText(taskId, "taskId 不能为空");
 		String path = this.queryPath.replace(TASK_ID_PLACEHOLDER,
 				URLEncoder.encode(taskId, StandardCharsets.UTF_8));
@@ -128,14 +129,14 @@ public class TurboSeedanceVideoApiClient {
 	 * @param taskId 任务 ID
 	 * @return 接口响应
 	 */
-	public TurboSeedanceVideoSubmitResponse content(String taskId) {
+	public TurboSeedanceVideoQueryResponse content(String taskId) {
 		Assert.hasText(taskId, "taskId 不能为空");
 		String path = this.contentPath.replace(TASK_ID_PLACEHOLDER,
 				URLEncoder.encode(taskId, StandardCharsets.UTF_8));
 		return doGet(path, taskId);
 	}
 
-	private TurboSeedanceVideoSubmitResponse doGet(String path, String taskId) {
+	private TurboSeedanceVideoQueryResponse doGet(String path, String taskId) {
 		try {
 			ResponseEntity<String> response = this.restClient.get()
 				.uri(path)
@@ -165,17 +166,17 @@ public class TurboSeedanceVideoApiClient {
 		if (StringUtils.hasText(options.getRatio())) {
 			form.add("ratio", options.getRatio());
 		}
-		if (StringUtils.hasText(options.getImage())) {
+		/*if (StringUtils.hasText(options.getImage())) {
 			form.add("image", options.getImage());
 		}
-		List<String> images = options.getImages();
-		if (images != null) {
+		List<String> images = options.getImages();*/
+		/*if (images != null) {
 			for (String url : images) {
 				if (StringUtils.hasText(url)) {
 					form.add("images", url);
 				}
 			}
-		}
+		}*/
 		TurboSeedanceVideoOptions.Metadata metadata = options.getMetadata();
 		if (metadata != null) {
 			try {
@@ -191,17 +192,17 @@ public class TurboSeedanceVideoApiClient {
 		return form;
 	}
 
-	private TurboSeedanceVideoSubmitResponse parseResponse(ResponseEntity<String> response, String taskId) {
+	private TurboSeedanceVideoQueryResponse parseResponse(ResponseEntity<String> response, String taskId) {
 		HttpStatusCode status = response.getStatusCode();
 		String body = response.getBody();
 		if (!status.is2xxSuccessful()) {
 			throw buildErrorException(status, body, taskId);
 		}
 		if (!StringUtils.hasText(body)) {
-			return new TurboSeedanceVideoSubmitResponse();
+			return new TurboSeedanceVideoQueryResponse();
 		}
 		try {
-			return this.objectMapper.readValue(body, TurboSeedanceVideoSubmitResponse.class);
+			return this.objectMapper.readValue(body, TurboSeedanceVideoQueryResponse.class);
 		}
 		catch (JsonProcessingException e) {
 			throw new TurboSeedanceVideoException(

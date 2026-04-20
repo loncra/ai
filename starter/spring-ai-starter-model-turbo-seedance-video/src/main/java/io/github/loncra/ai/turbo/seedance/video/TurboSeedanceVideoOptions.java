@@ -2,25 +2,25 @@ package io.github.loncra.ai.turbo.seedance.video;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.github.loncra.ai.turbo.seedance.video.domian.metadata.TurboSeedanceVideoContent;
+import io.github.loncra.ai.turbo.seedance.video.domian.TurboSeedanceVideoContent;
 import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoMode;
 import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoModelType;
-import io.github.loncra.framework.commons.enumerate.NameEnum;
+import io.github.loncra.ai.video.VideoOptions;
+import io.github.loncra.framework.commons.exception.SystemException;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.model.ModelOptions;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Turbo 渠道 Seedance 视频生成 {@link ModelOptions}。
  * <p>
  * 字段划分完全按照 {@code src/test/resources/readme.html} 第 2 节：
  * <ul>
- * <li>顶层字段 {@link #model} / {@link #duration} / {@link #mode} / {@link #ratio} / {@link #image} / {@link #images} 直接映射到 {@code multipart/form-data} 字段。</li>
+ * <li>顶层字段 {@link #model} / {@link #duration} / {@link #mode} / {@link #ratio} / 直接映射到 {@code multipart/form-data} 字段。</li>
  * <li>嵌套的 {@link Metadata} 对应表单字段 {@code metadata} 中的 JSON 字符串。</li>
  * </ul>
  * 运行时由 {@link TurboSeedanceVideoModel} 合并默认值、推断 {@code mode} 并完成校验。
@@ -28,7 +28,7 @@ import java.util.Map;
  * @author maurice.chen
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
+public class TurboSeedanceVideoOptions implements VideoOptions, Serializable {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
@@ -41,7 +41,7 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 	/**
 	 * 视频时长，单位秒；取值范围 {@code 4-15}。
 	 */
-	private Integer duration;
+	private Integer duration = 4;
 
 	/**
 	 * 生成模式；不传时平台会根据素材自动推断（见文档第 3 节）。
@@ -54,19 +54,14 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 	private String ratio;
 
 	/**
-	 * 单张参考图片 URL；用于 {@link TurboSeedanceVideoMode#IMAGE_TO_VIDEO}。
+	 * 视频分辨率，支持 480p、720p
 	 */
-	private String image;
-
-	/**
-	 * 多张参考图片 URL。
-	 */
-	private List<String> images;
+	private String resolution;
 
 	/**
 	 * 扩展元数据，对应表单字段 {@code metadata}，被序列化为 JSON 字符串后再提交。
 	 */
-	private Metadata metadata;
+	private Metadata metadata = new Metadata();
 
 	public TurboSeedanceVideoOptions() {
 	}
@@ -87,10 +82,7 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		target.duration = source.duration;
 		target.mode = source.mode;
 		target.ratio = source.ratio;
-		target.image = source.image;
-		if (source.images != null) {
-			target.images = new ArrayList<>(source.images);
-		}
+		target.resolution = source.resolution;
 		if (source.metadata != null) {
 			target.metadata = Metadata.fromMetadata(source.metadata);
 		}
@@ -129,20 +121,13 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		this.ratio = ratio;
 	}
 
-	public String getImage() {
-		return this.image;
+	@Override
+	public String getResolution() {
+		return resolution;
 	}
 
-	public void setImage(String image) {
-		this.image = image;
-	}
-
-	public List<String> getImages() {
-		return this.images;
-	}
-
-	public void setImages(List<String> images) {
-		this.images = images;
+	public void setResolution(String resolution) {
+		this.resolution = resolution;
 	}
 
 	public Metadata getMetadata() {
@@ -170,10 +155,8 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		if (this.mode != null) {
 			return this.mode;
 		}
-		int imageCount = this.image != null ? 1 : 0;
-		if (this.images != null) {
-			imageCount += this.images.size();
-		}
+
+		int imageCount = 0;
 		int videoCount = 0;
 		int audioCount = 0;
 		if (this.metadata != null && this.metadata.content != null) {
@@ -206,90 +189,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 	}
 
 	/**
-	 * 按文档第 4 节参数约束做请求前校验；不合法时直接抛 {@link IllegalArgumentException}，避免产生计费失败请求。
-	 *
-	 * @param prompt 当前 prompt；用于 1-500 字符长度校验
-	 */
-	public void validate(String prompt) {
-		if (prompt == null || prompt.isEmpty()) {
-			throw new IllegalArgumentException("prompt 不能为空");
-		}
-		if (prompt.length() > 500) {
-			throw new IllegalArgumentException("prompt 长度需在 1-500 字符之间，当前长度为 " + prompt.length());
-		}
-		if (this.model == null || this.model.isBlank()) {
-			throw new IllegalArgumentException("model 不能为空，仅支持 seedance-2 / seedance-2-fast");
-		}
-		if (NameEnum.ofEnum(TurboSeedanceVideoModelType.class, this.model, true) == null) {
-			throw new IllegalArgumentException("model=" + this.model + " 不在支持列表中，仅支持 seedance-2 / seedance-2-fast");
-		}
-
-		if (this.duration != null && (this.duration < 4 || this.duration > 15)) {
-			throw new IllegalArgumentException("duration 取值范围 4-15 秒，当前为 " + this.duration);
-		}
-		String resolvedResolution = this.metadata != null ? this.metadata.resolution : null;
-
-		String resolvedRatio = this.metadata != null && this.metadata.ratio != null ? this.metadata.ratio : this.ratio;
-		if ("720p".equalsIgnoreCase(resolvedResolution)
-				&& ("3:4".equals(resolvedRatio) || "9:16".equals(resolvedRatio))) {
-			throw new IllegalArgumentException("720p 分辨率不支持 3:4 / 9:16 宽高比，请改用 480p");
-		}
-		int[] counts = countContentAssets();
-		int imageContentCount = counts[0];
-		int videoContentCount = counts[1];
-		int audioContentCount = counts[2];
-
-		if (this.mode == TurboSeedanceVideoMode.FIRST_LAST_FRAME) {
-			int imageCount = (this.image != null ? 1 : 0) + (this.images != null ? this.images.size() : 0)
-					+ imageContentCount;
-			if (imageCount != 2) {
-				throw new IllegalArgumentException("first_last_frame 模式要求恰好 2 张图片，当前为 " + imageCount);
-			}
-		}
-		if (this.mode == TurboSeedanceVideoMode.IMAGE_TO_VIDEO) {
-			int imageCount = (this.image != null ? 1 : 0) + (this.images != null ? this.images.size() : 0)
-					+ imageContentCount;
-			if (imageCount < 1) {
-				throw new IllegalArgumentException("image_to_video 模式至少需要 1 张图片");
-			}
-		}
-		if (this.mode == TurboSeedanceVideoMode.MULTI_REF) {
-			if (imageContentCount > 9) {
-				throw new IllegalArgumentException("multi_ref 模式下 image 最多 9 个，当前为 " + imageContentCount);
-			}
-			if (videoContentCount > 3) {
-				throw new IllegalArgumentException("multi_ref 模式下 video 最多 3 个，当前为 " + videoContentCount);
-			}
-			if (audioContentCount > 3) {
-				throw new IllegalArgumentException("multi_ref 模式下 audio 最多 3 个，当前为 " + audioContentCount);
-			}
-		}
-	}
-
-	/**
-	 * 按类型统计 {@code metadata.content} 中各类素材数量，返回 {@code [image, video, audio]} 三元组。
-	 */
-	private int[] countContentAssets() {
-		int[] counts = new int[3];
-		if (this.metadata == null || this.metadata.content == null) {
-			return counts;
-		}
-		for (TurboSeedanceVideoContent c : this.metadata.content) {
-			if (c == null || c.getType() == null) {
-				continue;
-			}
-			switch (c.getType()) {
-				case TurboSeedanceVideoContent.TYPE_IMAGE_URL -> counts[0]++;
-				case TurboSeedanceVideoContent.TYPE_VIDEO_URL -> counts[1]++;
-				case TurboSeedanceVideoContent.TYPE_AUDIO_URL -> counts[2]++;
-				default -> {
-				}
-			}
-		}
-		return counts;
-	}
-
-	/**
 	 * {@code metadata} 字段数据类；提交时会被序列化为 JSON 字符串放入表单。
 	 */
 	@JsonInclude(JsonInclude.Include.NON_NULL)
@@ -309,13 +208,7 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		private String ratio;
 
 		/**
-		 * 任务完成后的回调地址。
-		 */
-		@JsonProperty("webhook_url")
-		private String webhookUrl;
-
-		/**
-		 * 同 {@link #webhookUrl}，文档兼容写法。
+		 * 任务完成后的回调地址
 		 */
 		@JsonProperty("callback_url")
 		private String callbackUrl;
@@ -339,12 +232,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		 */
 		private Boolean watermark;
 
-		/**
-		 * 额外扩展字段（保留给渠道端的未来参数）。
-		 */
-		@JsonProperty("extra")
-		private Map<String, Object> extra;
-
 		public Metadata() {
 		}
 
@@ -355,16 +242,12 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 			Metadata target = new Metadata();
 			target.resolution = source.resolution;
 			target.ratio = source.ratio;
-			target.webhookUrl = source.webhookUrl;
 			target.callbackUrl = source.callbackUrl;
 			if (source.content != null) {
 				target.content = new ArrayList<>(source.content);
 			}
 			target.generateAudio = source.generateAudio;
 			target.watermark = source.watermark;
-			if (source.extra != null) {
-				target.extra = new LinkedHashMap<>(source.extra);
-			}
 			return target;
 		}
 
@@ -382,14 +265,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 
 		public void setRatio(String ratio) {
 			this.ratio = ratio;
-		}
-
-		public String getWebhookUrl() {
-			return this.webhookUrl;
-		}
-
-		public void setWebhookUrl(String webhookUrl) {
-			this.webhookUrl = webhookUrl;
 		}
 
 		public String getCallbackUrl() {
@@ -422,14 +297,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 
 		public void setWatermark(Boolean watermark) {
 			this.watermark = watermark;
-		}
-
-		public Map<String, Object> getExtra() {
-			return this.extra;
-		}
-
-		public void setExtra(Map<String, Object> extra) {
-			this.extra = extra;
 		}
 
 	}
@@ -466,16 +333,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 			return this;
 		}
 
-		public Builder image(String image) {
-			this.target.image = image;
-			return this;
-		}
-
-		public Builder images(List<String> images) {
-			this.target.images = images != null ? new ArrayList<>(images) : null;
-			return this;
-		}
-
 		public Builder metadata(Metadata metadata) {
 			this.target.metadata = metadata;
 			return this;
@@ -483,11 +340,6 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 
 		public Builder resolution(String resolution) {
 			ensureMetadata().resolution = resolution;
-			return this;
-		}
-
-		public Builder webhookUrl(String webhookUrl) {
-			ensureMetadata().webhookUrl = webhookUrl;
 			return this;
 		}
 
@@ -519,9 +371,71 @@ public class TurboSeedanceVideoOptions implements ModelOptions, Serializable {
 		}
 
 		public TurboSeedanceVideoOptions build() {
+			validate();
 			return this.target;
 		}
 
+		private void validate() {
+			SystemException.isTrue(StringUtils.isNotEmpty(target.model), "model 不能为空，仅支持 seedance-2 / seedance-2-fast");
+			SystemException.isTrue(target.duration >= 4 && target.duration <= 15, "duration 取值范围 4-15 秒，当前为 " + target.duration);
+
+			target.metadata.resolution = target.getResolution();
+			target.metadata.ratio = target.getRatio();
+
+			if ("720p".equalsIgnoreCase(target.metadata.resolution)
+					&& ("3:4".equals(target.metadata.ratio) || "9:16".equals(target.metadata.ratio))) {
+				throw new IllegalArgumentException("720p 分辨率不支持 3:4 / 9:16 宽高比，请改用 480p");
+			}
+
+			int[] counts = countContentAssets();
+
+			int imageContentCount = counts[0];
+			int videoContentCount = counts[1];
+			int audioContentCount = counts[2];
+
+			if (target.mode == TurboSeedanceVideoMode.FIRST_LAST_FRAME && imageContentCount != 2) {
+					throw new IllegalArgumentException("first_last_frame 模式要求恰好 2 张图片，当前为 " + imageContentCount);
+			}
+
+			if (target.mode == TurboSeedanceVideoMode.IMAGE_TO_VIDEO && imageContentCount < 1) {
+				throw new IllegalArgumentException("image_to_video 模式至少需要 1 张图片");
+			}
+
+			if (target.mode == TurboSeedanceVideoMode.MULTI_REF) {
+				if (imageContentCount > 9) {
+					throw new IllegalArgumentException("multi_ref 模式下 image 最多 9 个，当前为 " + imageContentCount);
+				}
+				if (videoContentCount > 3) {
+					throw new IllegalArgumentException("multi_ref 模式下 video 最多 3 个，当前为 " + videoContentCount);
+				}
+				if (audioContentCount > 3) {
+					throw new IllegalArgumentException("multi_ref 模式下 audio 最多 3 个，当前为 " + audioContentCount);
+				}
+			}
+		}
+
+		/**
+		 * 按类型统计 {@code metadata.content} 中各类素材数量，返回 {@code [image, video, audio]} 三元组。
+		 */
+		private int[] countContentAssets() {
+			int[] counts = new int[3];
+			if (target.metadata == null || target.metadata.content == null) {
+				return counts;
+			}
+			for (TurboSeedanceVideoContent c : target.metadata.content) {
+				if (c == null || c.getType() == null) {
+					continue;
+				}
+				switch (c.getType()) {
+					case TurboSeedanceVideoContent.TYPE_IMAGE_URL -> counts[0]++;
+					case TurboSeedanceVideoContent.TYPE_VIDEO_URL -> counts[1]++;
+					case TurboSeedanceVideoContent.TYPE_AUDIO_URL -> counts[2]++;
+					default -> {
+					}
+				}
+			}
+			return counts;
+		}
 	}
 
 }
