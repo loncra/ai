@@ -35,6 +35,12 @@ public class TurboSeedanceVideoProperties {
 
 	public static final String DEFAULT_CONTENT_PATH = "/v1/videos/{task_id}/content";
 
+	public static final String DEFAULT_ASSET_GROUP_PATH = "/turbo_data/asset-groups";
+
+	public static final String DEFAULT_ASSET_PATH = "/turbo_data/assets";
+
+	public static final String DEFAULT_ASSET_BATCH_PATH = "/turbo_data/assets/batch";
+
 	/**
 	 * 是否启用 Turbo Seedance 视频自动配置。
 	 */
@@ -64,6 +70,21 @@ public class TurboSeedanceVideoProperties {
 	 * 拉取内容路径，默认 {@value #DEFAULT_CONTENT_PATH}。
 	 */
 	private String contentPath = DEFAULT_CONTENT_PATH;
+
+	/**
+	 * 资源组接口路径，默认 {@value #DEFAULT_ASSET_GROUP_PATH}。
+	 */
+	private String assetGroupPath = DEFAULT_ASSET_GROUP_PATH;
+
+	/**
+	 * 单素材与素材列表接口路径，默认 {@value #DEFAULT_ASSET_PATH}。
+	 */
+	private String assetPath = DEFAULT_ASSET_PATH;
+
+	/**
+	 * 批量素材接口路径，默认 {@value #DEFAULT_ASSET_BATCH_PATH}。
+	 */
+	private String assetBatchPath = DEFAULT_ASSET_BATCH_PATH;
 
 	/**
 	 * 连接超时，默认 10 秒。
@@ -171,6 +192,30 @@ public class TurboSeedanceVideoProperties {
 
 	public void setContentPath(String contentPath) {
 		this.contentPath = contentPath;
+	}
+
+	public String getAssetGroupPath() {
+		return this.assetGroupPath;
+	}
+
+	public void setAssetGroupPath(String assetGroupPath) {
+		this.assetGroupPath = assetGroupPath;
+	}
+
+	public String getAssetPath() {
+		return this.assetPath;
+	}
+
+	public void setAssetPath(String assetPath) {
+		this.assetPath = assetPath;
+	}
+
+	public String getAssetBatchPath() {
+		return this.assetBatchPath;
+	}
+
+	public void setAssetBatchPath(String assetBatchPath) {
+		this.assetBatchPath = assetBatchPath;
 	}
 
 	public Duration getConnectTimeout() {
