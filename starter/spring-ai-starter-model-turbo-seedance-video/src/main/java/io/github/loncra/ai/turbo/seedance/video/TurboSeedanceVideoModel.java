@@ -1,22 +1,16 @@
 package io.github.loncra.ai.turbo.seedance.video;
 
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoQueryResponse;
-import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoSubmitResponse;
-import io.github.loncra.ai.turbo.seedance.video.domian.metadata.TurboSeedanceVideoResponseMetadata;
-import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoStatus;
 import io.github.loncra.ai.video.*;
-import io.github.loncra.framework.commons.enumerate.ValueEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.image.ImageOptions;
 import org.springframework.ai.model.Model;
 import org.springframework.ai.model.ModelOptionsUtils;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.util.Assert;
 
-import java.time.Instant;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Turbo 渠道 Seedance 视频生成 {@link Model} 实现。
@@ -28,6 +22,16 @@ public class TurboSeedanceVideoModel implements VideoModel<String> {
     private static final Logger logger = LoggerFactory.getLogger(TurboSeedanceVideoModel.class);
 
     public static final String PROVIDER_NAME = "turbo-seedance";
+
+    public static final String SUCCEEDED_STATUS_VALUE = "succeeded";
+
+    public static final String SUBMITTED_STATUS_VALUE = "submitted";
+
+    public static final String FAILED_STATUS_VALUE = "failed";
+
+    public static final String COMPLETED_STATUS_VALUE = "completed";
+
+    public static final List<String> SUCCEEDED_STATUS = List.of(SUCCEEDED_STATUS_VALUE, COMPLETED_STATUS_VALUE);
 
     private final TurboSeedanceVideoApiClient apiClient;
 
@@ -64,12 +68,12 @@ public class TurboSeedanceVideoModel implements VideoModel<String> {
     @Override
     public QueryVideoResponse query(String id) {
         Assert.hasText(id, "id 不能为空");
-        TurboSeedanceVideoQueryResponse response = this.retryTemplate.execute(ctx -> this.apiClient.query(id));
-        if (TurboSeedanceVideoStatus.SUCCEEDED.equals(response.getStatus())) {
+        /*TurboSeedanceVideoQueryResponse response = this.retryTemplate.execute(ctx -> this.apiClient.query(id));
+        if (SUCCEEDED_STATUS.contains(response.getStatus())) {
             return this.retryTemplate.execute(ctx -> this.apiClient.content(id));
-        }
+        }*/
 
-        return response;
+        return this.retryTemplate.execute(ctx -> this.apiClient.query(id));
     }
 
     @Override

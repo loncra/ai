@@ -1,17 +1,10 @@
 package io.github.loncra.ai.turbo.seedance.video.domian.body;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoStatus;
 import io.github.loncra.framework.commons.id.BasicIdentification;
 
 import java.io.Serial;
-import java.io.Serializable;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Turbo 渠道 Seedance 视频任务通用响应体；提交 / 查询 / 拉取内容均复用此结构。
@@ -29,7 +22,7 @@ public class TurboSeedanceVideoSubmitResponse implements BasicIdentification<Str
 
 	private String model;
 
-	private TurboSeedanceVideoStatus status;
+	private String status;
 
 	@JsonProperty("created_at")
 	private Instant creationTime;
@@ -50,11 +43,11 @@ public class TurboSeedanceVideoSubmitResponse implements BasicIdentification<Str
 		this.model = model;
 	}
 
-	public TurboSeedanceVideoStatus getStatus() {
+	public String getStatus() {
 		return this.status;
 	}
 
-	public void setStatus(TurboSeedanceVideoStatus status) {
+	public void setStatus(String status) {
 		this.status = status;
 	}
 

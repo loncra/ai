@@ -1,6 +1,5 @@
 package io.github.loncra.ai.turbo.seedance.video;
 
-import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoStatus;
 import org.springframework.ai.model.ModelResult;
 import org.springframework.ai.model.ResultMetadata;
 
@@ -23,7 +22,7 @@ public class TurboSeedanceVideoGeneration implements ModelResult<String> {
 	/**
 	 * 状态；非终态时 {@link #videoUrl} 通常为 {@code null}。
 	 */
-	private final TurboSeedanceVideoStatus status;
+	private final String status;
 
 	/**
 	 * 原始状态字符串，保留以便对接未知扩展值。
@@ -93,7 +92,7 @@ public class TurboSeedanceVideoGeneration implements ModelResult<String> {
 		return this.taskId;
 	}
 
-	public TurboSeedanceVideoStatus getStatus() {
+	public String getStatus() {
 		return this.status;
 	}
 
@@ -149,7 +148,7 @@ public class TurboSeedanceVideoGeneration implements ModelResult<String> {
 
 		private String taskId;
 
-		private TurboSeedanceVideoStatus status;
+		private String status;
 
 		private String rawStatus;
 
@@ -172,7 +171,7 @@ public class TurboSeedanceVideoGeneration implements ModelResult<String> {
 			return this;
 		}
 
-		public Builder status(TurboSeedanceVideoStatus status) {
+		public Builder status(String status) {
 			this.status = status;
 			return this;
 		}

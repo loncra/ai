@@ -1,14 +1,14 @@
 package io.github.loncra.ai.turbo.seedance.video;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.loncra.ai.turbo.seedance.video.config.TurboSeedanceVideoProperties;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoErrorResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoQueryResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.body.TurboSeedanceVideoSubmitResponse;
 import io.github.loncra.ai.turbo.seedance.video.domian.exception.TurboSeedanceVideoException;
+import io.github.loncra.framework.commons.CastUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,8 +23,6 @@ import org.springframework.web.client.RestClient;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Turbo 渠道 Seedance 视频底层 HTTP 客户端，封装如下三段式接口：
@@ -46,38 +44,14 @@ public class TurboSeedanceVideoApiClient {
 
 	private final RestClient restClient;
 
-	private final ObjectMapper objectMapper;
+	private final TurboSeedanceVideoProperties properties;
 
-	private final String apiKey;
-
-	private final String baseUrl;
-
-	private final String submitPath;
-
-	private final String queryPath;
-
-	private final String contentPath;
-
-	private final boolean useAuthorizationBearer;
-
-	private final Map<String, String> extraHeaders;
-
-	public TurboSeedanceVideoApiClient(String apiKey, String baseUrl, String submitPath, String queryPath,
-			String contentPath, Duration connectTimeout, Duration readTimeout, boolean useAuthorizationBearer,
-			Map<String, String> extraHeaders, RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
-		Assert.hasText(baseUrl, "baseUrl 不能为空");
-		Assert.notNull(objectMapper, "objectMapper 不能为 null");
-		this.apiKey = apiKey;
-		this.baseUrl = stripTrailingSlash(baseUrl);
-		this.submitPath = defaultIfBlank(submitPath, "/v1/videos");
-		this.queryPath = defaultIfBlank(queryPath, "/v1/videos/{task_id}");
-		this.contentPath = defaultIfBlank(contentPath, "/v1/videos/{task_id}/content");
-		this.useAuthorizationBearer = useAuthorizationBearer;
-		this.extraHeaders = extraHeaders;
-		this.objectMapper = objectMapper;
+	public TurboSeedanceVideoApiClient(TurboSeedanceVideoProperties properties, RestClient.Builder restClientBuilder) {
+		Assert.hasText(properties.getBaseUrl(), "baseUrl 不能为空");
+		this.properties = properties;
 		RestClient.Builder builder = restClientBuilder != null ? restClientBuilder : RestClient.builder();
-		this.restClient = builder.baseUrl(this.baseUrl)
-			.requestFactory(buildRequestFactory(connectTimeout, readTimeout))
+		this.restClient = builder.baseUrl(properties.getBaseUrl())
+			.requestFactory(buildRequestFactory(properties.getConnectTimeout(), properties.getReadTimeout()))
 			.build();
 	}
 
@@ -94,8 +68,8 @@ public class TurboSeedanceVideoApiClient {
 		MultiValueMap<String, Object> form = buildSubmitForm(options, prompt);
 		try {
 			ResponseEntity<String> response = this.restClient.post()
-				.uri(this.submitPath)
-				.headers(this::applyAuthHeaders)
+				.uri(properties.getSubmitPath())
+				.headers(properties::applyAuthHeaders)
 				.contentType(MediaType.MULTIPART_FORM_DATA)
 				.body(form)
 				.retrieve()
@@ -118,7 +92,7 @@ public class TurboSeedanceVideoApiClient {
 	 */
 	public TurboSeedanceVideoQueryResponse query(String taskId) {
 		Assert.hasText(taskId, "taskId 不能为空");
-		String path = this.queryPath.replace(TASK_ID_PLACEHOLDER,
+		String path = properties.getQueryPath().replace(TASK_ID_PLACEHOLDER,
 				URLEncoder.encode(taskId, StandardCharsets.UTF_8));
 		return doGet(path, taskId);
 	}
@@ -131,7 +105,7 @@ public class TurboSeedanceVideoApiClient {
 	 */
 	public TurboSeedanceVideoQueryResponse content(String taskId) {
 		Assert.hasText(taskId, "taskId 不能为空");
-		String path = this.contentPath.replace(TASK_ID_PLACEHOLDER,
+		String path = properties.getContentPath().replace(TASK_ID_PLACEHOLDER,
 				URLEncoder.encode(taskId, StandardCharsets.UTF_8));
 		return doGet(path, taskId);
 	}
@@ -140,7 +114,7 @@ public class TurboSeedanceVideoApiClient {
 		try {
 			ResponseEntity<String> response = this.restClient.get()
 				.uri(path)
-				.headers(this::applyAuthHeaders)
+				.headers(properties::applyAuthHeaders)
 				.retrieve()
 				.toEntity(String.class);
 			return parseResponse(response, taskId);
@@ -180,7 +154,7 @@ public class TurboSeedanceVideoApiClient {
 		TurboSeedanceVideoOptions.Metadata metadata = options.getMetadata();
 		if (metadata != null) {
 			try {
-				String json = this.objectMapper.writeValueAsString(metadata);
+				String json = CastUtils.getObjectMapper().writeValueAsString(metadata);
 				if (StringUtils.hasText(json) && !"{}".equals(json)) {
 					form.add("metadata", json);
 				}
@@ -202,7 +176,7 @@ public class TurboSeedanceVideoApiClient {
 			return new TurboSeedanceVideoQueryResponse();
 		}
 		try {
-			return this.objectMapper.readValue(body, TurboSeedanceVideoQueryResponse.class);
+			return CastUtils.getObjectMapper().readValue(body, TurboSeedanceVideoQueryResponse.class);
 		}
 		catch (JsonProcessingException e) {
 			throw new TurboSeedanceVideoException(
@@ -214,7 +188,7 @@ public class TurboSeedanceVideoApiClient {
 		String message = "Turbo Seedance 视频接口返回非 2xx 状态：" + status.value();
 		if (StringUtils.hasText(body)) {
 			try {
-				TurboSeedanceVideoErrorResponse error = this.objectMapper.readValue(body,
+				TurboSeedanceVideoErrorResponse error = CastUtils.getObjectMapper().readValue(body,
 						TurboSeedanceVideoErrorResponse.class);
 				String resolved = error.resolveMessage();
 				if (StringUtils.hasText(resolved)) {
@@ -229,16 +203,6 @@ public class TurboSeedanceVideoApiClient {
 		return new TurboSeedanceVideoException(message, null, status, taskId, body);
 	}
 
-	private void applyAuthHeaders(HttpHeaders headers) {
-		if (this.useAuthorizationBearer && StringUtils.hasText(this.apiKey)
-				&& !headers.containsKey(HttpHeaders.AUTHORIZATION)) {
-			headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + this.apiKey);
-		}
-		if (this.extraHeaders != null) {
-			this.extraHeaders.forEach(headers::set);
-		}
-	}
-
 	private static ClientHttpRequestFactory buildRequestFactory(Duration connectTimeout, Duration readTimeout) {
 		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
 		if (connectTimeout != null) {
@@ -248,33 +212,6 @@ public class TurboSeedanceVideoApiClient {
 			factory.setReadTimeout((int) readTimeout.toMillis());
 		}
 		return factory;
-	}
-
-	private static String stripTrailingSlash(String url) {
-		if (url == null || url.isEmpty()) {
-			return url;
-		}
-		return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
-	}
-
-	private static String defaultIfBlank(String value, String fallback) {
-		return StringUtils.hasText(value) ? value : fallback;
-	}
-
-	public String getBaseUrl() {
-		return this.baseUrl;
-	}
-
-	public String getSubmitPath() {
-		return this.submitPath;
-	}
-
-	public String getQueryPath() {
-		return this.queryPath;
-	}
-
-	public String getContentPath() {
-		return this.contentPath;
 	}
 
 }

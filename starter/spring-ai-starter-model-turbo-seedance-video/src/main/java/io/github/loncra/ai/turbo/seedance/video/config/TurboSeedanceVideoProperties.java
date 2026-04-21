@@ -3,7 +3,9 @@ package io.github.loncra.ai.turbo.seedance.video.config;
 import io.github.loncra.ai.turbo.seedance.video.TurboSeedanceVideoOptions;
 import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoMode;
 import io.github.loncra.ai.turbo.seedance.video.enumerate.TurboSeedanceVideoModelType;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.http.HttpHeaders;
 
 import java.time.Duration;
 import java.util.Map;
@@ -383,4 +385,12 @@ public class TurboSeedanceVideoProperties {
 
 	}
 
+    public void applyAuthHeaders(HttpHeaders headers) {
+        if (getHttp().isUseAuthorizationBearer() && StringUtils.isNotEmpty(getApiKey())) {
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + getApiKey());
+        }
+        if (getHttp().getHeaders() != null) {
+            getHttp().getHeaders().forEach(headers::set);
+        }
+    }
 }

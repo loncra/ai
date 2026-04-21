@@ -33,19 +33,10 @@ public class TurboSeedanceVideoAutoConfiguration {
     @ConditionalOnMissingBean
     public TurboSeedanceVideoApiClient turboSeedanceVideoApiClient(
             TurboSeedanceVideoProperties properties,
-            ObjectProvider<ObjectMapper> objectMapperProvider,
             ObjectProvider<RestClient.Builder> restClientBuilderProvider
     ) {
-        ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
         RestClient.Builder builder = restClientBuilderProvider.getIfAvailable(RestClient::builder);
-        TurboSeedanceVideoProperties.Http http = properties.getHttp() != null ? properties.getHttp()
-                : new TurboSeedanceVideoProperties.Http();
-        return new TurboSeedanceVideoApiClient(
-                properties.getApiKey(), properties.getBaseUrl(),
-                properties.getSubmitPath(), properties.getQueryPath(), properties.getContentPath(),
-                properties.getConnectTimeout(), properties.getReadTimeout(), http.isUseAuthorizationBearer(),
-                http.getHeaders(), builder, objectMapper
-        );
+        return new TurboSeedanceVideoApiClient(properties,builder);
     }
 
     @Bean

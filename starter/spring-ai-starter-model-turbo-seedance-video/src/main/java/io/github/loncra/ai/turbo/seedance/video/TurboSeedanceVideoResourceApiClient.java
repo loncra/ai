@@ -23,7 +23,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -138,8 +137,10 @@ public class TurboSeedanceVideoResourceApiClient {
     }
 
     private RestClient.RequestBodySpec createBasicRequestClient(String url, HttpMethod method) {
-        String executeUrl = properties.getBaseUrl() + url;
-        return this.restClient.method(method).uri(executeUrl).headers(this::applyAuthHeaders).contentType(MediaType.APPLICATION_JSON);
+        return this.restClient.method(method)
+                .uri(url)
+                .headers(properties::applyAuthHeaders)
+                .contentType(MediaType.APPLICATION_JSON);
     }
 
     private void validResponseEntity(
@@ -147,19 +148,6 @@ public class TurboSeedanceVideoResourceApiClient {
     ) {
         HttpStatusCode status = response.getStatusCode();
         ErrorCodeException.isTrue(status.is2xxSuccessful(), "[" + HttpStatus.valueOf(status.value()).getReasonPhrase() + "]", String.valueOf(status.value()));
-    }
-
-    private void applyAuthHeaders(HttpHeaders headers) {
-        TurboSeedanceVideoProperties.Http http = this.properties.getHttp() != null ? this.properties.getHttp()
-                : new TurboSeedanceVideoProperties.Http();
-        if (http.isUseAuthorizationBearer() && StringUtils.isNotEmpty(this.properties.getApiKey())
-                && !headers.containsKey(HttpHeaders.AUTHORIZATION)) {
-            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + this.properties.getApiKey());
-        }
-        Map<String, String> extraHeaders = http.getHeaders();
-        if (extraHeaders != null) {
-            extraHeaders.forEach(headers::set);
-        }
     }
 
     private static ClientHttpRequestFactory buildRequestFactory(
