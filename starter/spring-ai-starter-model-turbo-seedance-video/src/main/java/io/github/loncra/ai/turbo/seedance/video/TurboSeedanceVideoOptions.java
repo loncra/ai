@@ -14,6 +14,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Turbo 渠道 Seedance 视频生成 {@link ModelOptions}。
@@ -41,7 +42,7 @@ public class TurboSeedanceVideoOptions implements VideoOptions, Serializable {
 	/**
 	 * 视频时长，单位秒；取值范围 {@code 4-15}。
 	 */
-	private Integer duration = 4;
+	private Integer duration;
 
 	/**
 	 * 生成模式；不传时平台会根据素材自动推断（见文档第 3 节）。
@@ -377,6 +378,7 @@ public class TurboSeedanceVideoOptions implements VideoOptions, Serializable {
 
 		private void validate() {
 			SystemException.isTrue(StringUtils.isNotEmpty(target.model), "model 不能为空，仅支持 seedance-2 / seedance-2-fast");
+			SystemException.isTrue(Objects.nonNull(target.duration), "视频时长不能为空");
 			SystemException.isTrue(target.duration >= 4 && target.duration <= 15, "duration 取值范围 4-15 秒，当前为 " + target.duration);
 
 			target.metadata.resolution = target.getResolution();
