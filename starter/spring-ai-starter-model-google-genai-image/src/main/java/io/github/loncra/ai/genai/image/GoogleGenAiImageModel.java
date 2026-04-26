@@ -5,6 +5,7 @@ import com.google.genai.types.*;
 import io.github.loncra.ai.genai.image.domain.metadata.GoogleGenAiImageGenerationMetadata;
 import io.github.loncra.ai.genai.image.enumerate.GeminiImageModel;
 import io.github.loncra.framework.commons.CastUtils;
+import io.github.loncra.framework.commons.exception.SystemException;
 import io.micrometer.observation.ObservationRegistry;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,12 +23,11 @@ import org.springframework.http.MediaType;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.regex.Matcher.quoteReplacement;
 
 /**
  * Google Gemini 原生图像生成（Nano Banana / Flash Image）的 {@link ImageModel} 实现。
@@ -43,10 +43,29 @@ public class GoogleGenAiImageModel implements ImageModel {
 	 * 部分渠道/网关在文本里返回 Markdown 内嵌图：{@code ![alt](data:image/png;base64,...)}，而非 {@link Part#inlineData()}。
 	 */
 	private static final Pattern MARKDOWN_DATA_URL_IMAGE = Pattern.compile(
-            "!\\[[^]]*]\\(\\s*data:([^;]+);base64,([^)]+)\\s*\\)");
+			"!\\[[^]]*]\\(\\s*data:([^;]+);base64,([^)]+)\\s*\\)");
 
 	/** Micrometer 观测中使用的提供商标识。 */
 	public static final String PROVIDER_NAME = "google-genai";
+
+	/**
+	 * {@link ImageResponse#getMetadata()} 中聚合文本（含将 Markdown data URL 替换为 {@code [n]}）的键，
+	 * 与 {@link ImageGeneration} 列表下标对应；无文本时可能不存在该键。
+	 */
+	public static final String METADATA_DOCUMENT_TEXT_KEY = "io.github.loncra.ai.google-genai-image.documentText";
+
+	/**
+	 * 一次 {@link GenerateContentResponse} 解析结果：图像列表与可读文档文本。
+	 *
+	 * @param generations 按应答顺序解析的图像
+	 * @param documentText 各文本 Part 拼接后的正文；内嵌图已替换为 {@code [index]}，与 {@code generations} 下标一致
+	 */
+	public record GoogleGenAiImageParseResult(List<ImageGeneration> generations, String documentText) {
+		public GoogleGenAiImageParseResult {
+			generations = List.copyOf(generations);
+			documentText = documentText == null ? StringUtils.EMPTY : documentText;
+		}
+	}
 
 	private static final ImageModelObservationConvention DEFAULT_OBSERVATION_CONVENTION = new DefaultImageModelObservationConvention();
 
@@ -69,12 +88,12 @@ public class GoogleGenAiImageModel implements ImageModel {
 	}
 
 	public GoogleGenAiImageModel(Client genAiClient, GoogleGenAiImageOptions defaultOptions,
-                                 RetryTemplate retryTemplate) {
+	                             RetryTemplate retryTemplate) {
 		this(genAiClient, defaultOptions, retryTemplate, ObservationRegistry.NOOP);
 	}
 
 	public GoogleGenAiImageModel(Client genAiClient, GoogleGenAiImageOptions defaultOptions,
-                                 RetryTemplate retryTemplate, ObservationRegistry observationRegistry) {
+	                             RetryTemplate retryTemplate, ObservationRegistry observationRegistry) {
 		Assert.notNull(genAiClient, "GenAI Client 不能为 null");
 		Assert.notNull(defaultOptions, "默认选项不能为 null");
 		Assert.notNull(retryTemplate, "retryTemplate 不能为 null");
@@ -97,34 +116,42 @@ public class GoogleGenAiImageModel implements ImageModel {
 		int n = opts.getN() != null && opts.getN() > 0 ? opts.getN() : 1;
 
 		var observationContext = ImageModelObservationContext.builder()
-			.imagePrompt(imagePrompt)
-			.provider(PROVIDER_NAME)
-			.build();
+				.imagePrompt(imagePrompt)
+				.provider(PROVIDER_NAME)
+				.build();
 
 		return ImageModelObservationDocumentation.IMAGE_MODEL_OPERATION
-			.observation(this.observationConvention, DEFAULT_OBSERVATION_CONVENTION, () -> observationContext,
-					this.observationRegistry)
-			.observe(() -> {
-				GenerateContentConfig config = buildGenerateContentConfig(opts);
-				List<ImageGeneration> generations = new ArrayList<>();
-				for (int i = 0; i < n; i++) {
-					GenerateContentResponse raw = this.retryTemplate
-						.execute(ctx -> invokeGenerateContent(modelName, instructions, config, opts));
-					List<ImageGeneration> chunk = toImageGenerations(raw);
-					generations.addAll(chunk);
-					if (chunk.isEmpty()) {
-						raw.promptFeedback().ifPresent(pf -> logger.warn("Gemini 提示反馈：{}", pf));
-						logger.warn("模型 {} 的 Gemini 图像响应中未解析到 inline 图像数据", modelName);
+				.observation(this.observationConvention, DEFAULT_OBSERVATION_CONVENTION, () -> observationContext,
+						this.observationRegistry)
+				.observe(() -> {
+					GenerateContentConfig config = buildGenerateContentConfig(opts);
+					List<ImageGeneration> generations = new ArrayList<>();
+					List<String> text = new LinkedList<>();
+					for (int i = 0; i < n; i++) {
+						GenerateContentResponse raw = this.retryTemplate
+								.execute(ctx -> invokeGenerateContent(modelName, instructions, config, opts));
+						GoogleGenAiImageParseResult chunk = parseGenerateContentResponse(raw);
+						generations.addAll(chunk.generations());
+						if (chunk.generations().isEmpty()) {
+							raw.promptFeedback().ifPresent(pf -> logger.warn("Gemini 提示反馈：{}", pf));
+							throw new SystemException("模型 " + modelName + " 的 Gemini 图像响应中未解析到 inline 图像数据");
+						}
+						if (StringUtils.isNotEmpty(chunk.documentText())) {
+							text.add(chunk.documentText());
+						}
 					}
-				}
-				ImageResponse response = new ImageResponse(generations, new ImageResponseMetadata());
-				observationContext.setResponse(response);
-				return response;
-			});
+					ImageResponseMetadata responseMetadata = new ImageResponseMetadata();
+					if (CollectionUtils.isNotEmpty(text)) {
+						responseMetadata.put(METADATA_DOCUMENT_TEXT_KEY, text);
+					}
+					ImageResponse response = new ImageResponse(generations, new ImageResponseMetadata());
+					observationContext.setResponse(response);
+					return response;
+				});
 	}
 
 	private GenerateContentResponse invokeGenerateContent(String modelName, String instructions,
-			GenerateContentConfig config, GoogleGenAiImageOptions opts) {
+	                                                      GenerateContentConfig config, GoogleGenAiImageOptions opts) {
 		List<Part> refs = opts.getReferenceImages();
 		if (refs == null || refs.isEmpty()) {
 			return this.genAiClient.models.generateContent(modelName, instructions, config);
@@ -136,7 +163,7 @@ public class GoogleGenAiImageModel implements ImageModel {
 		}
 		List<Part> parts = new ArrayList<>();
 		parts.add(Part.fromText(instructions));
-        parts.addAll(refs);
+		parts.addAll(refs);
 		Content content = Content.fromParts(parts.toArray(Part[]::new));
 		return this.genAiClient.models.generateContent(modelName, content, config);
 	}
@@ -176,29 +203,49 @@ public class GoogleGenAiImageModel implements ImageModel {
 	}
 
 	/**
-	 * 将 {@link GenerateContentResponse} 中的 inline 图像解析为 Spring AI {@link ImageGeneration} 列表。
+	 * 将 {@link GenerateContentResponse} 解析为图像列表与文档正文（详见 {@link GoogleGenAiImageParseResult}）。
 	 */
-	public static List<ImageGeneration> toImageGenerations(GenerateContentResponse raw) {
+	public static GoogleGenAiImageParseResult parseGenerateContentResponse(GenerateContentResponse raw) {
 		List<ImageGeneration> generations = new ArrayList<>();
+		StringBuilder document = new StringBuilder();
 		if (!Objects.requireNonNull(raw.parts()).isEmpty()) {
 			for (Part p : raw.parts()) {
-				addInlineImage(generations, p);
+				consumePart(generations, document, p);
 			}
-			return generations;
+			return new GoogleGenAiImageParseResult(generations, document.toString());
 		}
 		raw.candidates().ifPresent(candidates -> {
 			for (Candidate c : candidates) {
 				c.content().flatMap(Content::parts).ifPresent(parts -> {
-                    for (Part p : parts) {
-                        addInlineImage(generations, p);
-                    }
-                });
+					for (Part p : parts) {
+						consumePart(generations, document, p);
+					}
+				});
 			}
 		});
-		return generations;
+		return new GoogleGenAiImageParseResult(generations, document.toString());
 	}
 
-	private static void addInlineImage(List<ImageGeneration> generations, Part p) {
+	/**
+	 * 将 {@link GenerateContentResponse} 中的 inline 图像解析为 Spring AI {@link ImageGeneration} 列表。
+	 * <p>
+	 * 等价于 {@link #parseGenerateContentResponse(GenerateContentResponse)}{@code .generations()}。
+	 */
+	public static List<ImageGeneration> toImageGenerations(GenerateContentResponse raw) {
+		return parseGenerateContentResponse(raw).generations();
+	}
+
+	private static void appendDocumentSection(StringBuilder document, String section) {
+		if (StringUtils.isBlank(section)) {
+			return;
+		}
+		if (!document.isEmpty()) {
+			document.append(System.lineSeparator());
+		}
+		document.append(section);
+	}
+
+	private static void consumePart(List<ImageGeneration> generations, StringBuilder document, Part p) {
 		if (p.inlineData().isPresent()) {
 			Blob blob = p.inlineData().get();
 			if (blob.data().filter(b -> b.length > 0).isPresent()) {
@@ -206,34 +253,49 @@ public class GoogleGenAiImageModel implements ImageModel {
 				return;
 			}
 		}
-		p.text()
-                .filter(StringUtils::isNotEmpty)
-                .ifPresent(text -> appendImagesFromMarkdownDataUrls(text, generations));
+		p.text().filter(StringUtils::isNotEmpty).ifPresent(text -> appendTextPartWithMarkdownImages(generations, document, text));
 	}
 
 	/**
-	 * 从 Markdown 图片语法中解析 {@code data:image/...;base64,...}，写入 Spring AI {@link ImageGeneration}（b64 串与 inline 路径一致）。
+	 * 从 Markdown 内嵌 {@code data:image/...;base64,...} 解析图像；将匹配段替换为 {@code [index]}（与 {@code generations} 中下标一致），
+	 * 并把替换后的文本写入 {@code document}。
 	 */
-	private static void appendImagesFromMarkdownDataUrls(String text, List<ImageGeneration> generations) {
+	private static void appendTextPartWithMarkdownImages(List<ImageGeneration> generations, StringBuilder document,
+	                                                     String text) {
+		int baseIndex = generations.size();
+		StringBuilder redacted = new StringBuilder();
 		Matcher m = MARKDOWN_DATA_URL_IMAGE.matcher(text);
+		int ordinal = 0;
 		while (m.find()) {
 			String mime = m.group(1).trim();
 			String b64 = m.group(2).trim().replaceAll("\\s+", StringUtils.EMPTY);
-			if (!mime.startsWith("image/") || !StringUtils.isNotEmpty(b64)) {
+			if (!mime.startsWith("image/") || StringUtils.isEmpty(b64)) {
+				m.appendReplacement(redacted, quoteReplacement(m.group(0)));
 				continue;
 			}
-			ImageGenerationMetadata meta = new GoogleGenAiImageGenerationMetadata(MediaType.valueOf(mime));
-			generations.add(new ImageGeneration(new Image(null, b64), meta));
+			try {
+				MediaType mediaType = MediaType.valueOf(mime);
+				ImageGenerationMetadata meta = new GoogleGenAiImageGenerationMetadata(mediaType);
+				generations.add(new ImageGeneration(new Image(null, b64), meta));
+				int idx = baseIndex + ordinal;
+				ordinal++;
+				m.appendReplacement(redacted, quoteReplacement("[" + idx + "]"));
+			}
+			catch (IllegalArgumentException ex) {
+				m.appendReplacement(redacted, quoteReplacement(m.group(0)));
+			}
 		}
+		m.appendTail(redacted);
+		appendDocumentSection(document, redacted.toString());
 	}
 
 	private static ImageGeneration blobToGeneration(Blob blob) {
 		byte[] data = blob.data().orElse(new byte[0]);
 		String b64 = Base64.getEncoder().encodeToString(data);
 		MediaType mime = blob.mimeType()
-			.filter(StringUtils::isNotEmpty)
-			.map(MediaType::valueOf)
-			.orElseGet(() -> detectImageMimeFromBytes(data));
+				.filter(StringUtils::isNotEmpty)
+				.map(MediaType::valueOf)
+				.orElseGet(() -> detectImageMimeFromBytes(data));
 		ImageGenerationMetadata meta = new GoogleGenAiImageGenerationMetadata(mime);
 		return new ImageGeneration(new Image(null, b64), meta);
 	}
@@ -272,37 +334,37 @@ public class GoogleGenAiImageModel implements ImageModel {
 					GoogleGenAiImageOptions.class);
 		}
 
-        GoogleGenAiImageOptions requestOptions;
-        requestOptions = GoogleGenAiImageOptions.builder()
-                .N(ModelOptionsUtils.mergeOption(runtimeOptions.getN(), this.defaultOptions.getN()))
-                .model(ModelOptionsUtils.mergeOption(runtimeOptions.getModel(), this.defaultOptions.getModel()))
-                .width(ModelOptionsUtils.mergeOption(runtimeOptions.getWidth(), this.defaultOptions.getWidth()))
-                .height(ModelOptionsUtils.mergeOption(runtimeOptions.getHeight(), this.defaultOptions.getHeight()))
-                .responseFormat(ModelOptionsUtils.mergeOption(
-                        runtimeOptions.getResponseFormat(),
-                        this.defaultOptions.getResponseFormat()
-                ))
-                .style(ModelOptionsUtils.mergeOption(runtimeOptions.getStyle(), this.defaultOptions.getStyle()))
-                .aspectRatio(ModelOptionsUtils.mergeOption(
-                        runtimeOptions.getAspectRatio(),
-                        this.defaultOptions.getAspectRatio()
-                ))
-                .imageSize(ModelOptionsUtils.mergeOption(
-                        runtimeOptions.getImageSize(),
-                        this.defaultOptions.getImageSize()
-                ))
-                .personGeneration(ModelOptionsUtils.mergeOption(
-                        runtimeOptions.getPersonGeneration(),
-                        this.defaultOptions.getPersonGeneration()
-                ))
+		GoogleGenAiImageOptions requestOptions;
+		requestOptions = GoogleGenAiImageOptions.builder()
+				.N(ModelOptionsUtils.mergeOption(runtimeOptions.getN(), this.defaultOptions.getN()))
+				.model(ModelOptionsUtils.mergeOption(runtimeOptions.getModel(), this.defaultOptions.getModel()))
+				.width(ModelOptionsUtils.mergeOption(runtimeOptions.getWidth(), this.defaultOptions.getWidth()))
+				.height(ModelOptionsUtils.mergeOption(runtimeOptions.getHeight(), this.defaultOptions.getHeight()))
+				.responseFormat(ModelOptionsUtils.mergeOption(
+						runtimeOptions.getResponseFormat(),
+						this.defaultOptions.getResponseFormat()
+				))
+				.style(ModelOptionsUtils.mergeOption(runtimeOptions.getStyle(), this.defaultOptions.getStyle()))
+				.aspectRatio(ModelOptionsUtils.mergeOption(
+						runtimeOptions.getAspectRatio(),
+						this.defaultOptions.getAspectRatio()
+				))
+				.imageSize(ModelOptionsUtils.mergeOption(
+						runtimeOptions.getImageSize(),
+						this.defaultOptions.getImageSize()
+				))
+				.personGeneration(ModelOptionsUtils.mergeOption(
+						runtimeOptions.getPersonGeneration(),
+						this.defaultOptions.getPersonGeneration()
+				))
 				.safetySettings(ModelOptionsUtils.mergeOption(
 						runtimeOptions.getSafetySettings(),
 						this.defaultOptions.getSafetySettings()
 				))
-                .build();
-        requestOptions.setResponseModalities(mergeResponseModalities(runtimeOptions));
+				.build();
+		requestOptions.setResponseModalities(mergeResponseModalities(runtimeOptions));
 
-        requestOptions.setReferenceImages(GoogleGenAiImageOptions.mergeReferenceImages(runtimeOptions,
+		requestOptions.setReferenceImages(GoogleGenAiImageOptions.mergeReferenceImages(runtimeOptions,
 				this.defaultOptions));
 
 		if (requestOptions.getModel() == null) {
