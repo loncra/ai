@@ -173,7 +173,8 @@ public class TurboSeedanceVideoApiClient {
 			throw buildErrorException(status, body, taskId);
 		}
 		if (!StringUtils.hasText(body)) {
-			return new TurboSeedanceVideoQueryResponse();
+			throw new TurboSeedanceVideoException(
+					"解析 Turbo Seedance 视频响应失败：body 没有任何内容；原始响应：" + body, null, status, taskId, body);
 		}
 		try {
 			return CastUtils.getObjectMapper().readValue(body, TurboSeedanceVideoQueryResponse.class);
